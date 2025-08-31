@@ -11,24 +11,146 @@
   <div class="container">
     <h1>Join the Contest</h1>
     <p>Нажмите кнопку ниже, чтобы отправить участие.</p>
+    
+    <!-- Mini App button -->
     <button id="joinBtn">Подтвердить участие</button>
+    
+    <!-- Fallback form (hidden by default) -->
+    <div id="fallbackForm" style="display: none; margin-top: 20px; padding: 20px; border: 1px solid #ccc; border-radius: 8px;">
+      <h3>Альтернативная регистрация</h3>
+      <p>Если Mini App не работает, заполните форму:</p>
+      <form id="participateForm">
+        <div style="margin-bottom: 10px;">
+          <label for="telegramId">Telegram User ID:</label>
+          <input type="number" id="telegramId" name="telegram_user_id" required style="width: 100%; padding: 5px;">
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label for="username">Username (без @):</label>
+          <input type="text" id="username" name="username" style="width: 100%; padding: 5px;">
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label for="firstName">Имя:</label>
+          <input type="text" id="firstName" name="first_name" style="width: 100%; padding: 5px;">
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label for="lastName">Фамилия:</label>
+          <input type="text" id="lastName" name="last_name" style="width: 100%; padding: 5px;">
+        </div>
+        <button type="submit">Зарегистрироваться</button>
+      </form>
+    </div>
+    
+    <div id="debug" style="margin-top: 20px; font-size: 12px; color: #666;"></div>
   </div>
 
   <script>
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      tg.ready();
+    const debugDiv = document.getElementById('debug');
+    const fallbackForm = document.getElementById('fallbackForm');
+    
+    function log(message) {
+      console.log(message);
+      debugDiv.innerHTML += message + '<br>';
+    }
+    
+    // Initialize Telegram WebApp
+    let tg = null;
+    let isMiniApp = false;
+    
+    try {
+      tg = window.Telegram?.WebApp;
+      if (tg) {
+        tg.ready();
+        tg.expand();
+        isMiniApp = true;
+        log('Telegram WebApp initialized successfully');
+        log('Platform: ' + tg.platform);
+        log('Version: ' + tg.version);
+        
+        // Auto-fill form with Telegram user data if available
+        if (tg.initDataUnsafe?.user) {
+          const user = tg.initDataUnsafe.user;
+          document.getElementById('telegramId').value = user.id || '';
+          document.getElementById('username').value = user.username || '';
+          document.getElementById('firstName').value = user.first_name || '';
+          document.getElementById('lastName').value = user.last_name || '';
+          log('Auto-filled form with Telegram user data');
+        }
+      } else {
+        log('Telegram WebApp not available - showing fallback form');
+        fallbackForm.style.display = 'block';
+      }
+    } catch (e) {
+      log('Error initializing Telegram WebApp: ' + e.message);
+      fallbackForm.style.display = 'block';
     }
 
     document.getElementById('joinBtn').addEventListener('click', () => {
       const payload = { action: 'join', timestamp: Date.now() };
-      if (tg && tg.sendData) {
-        tg.sendData(JSON.stringify(payload));
-        tg.close();
+      log('Button clicked, payload: ' + JSON.stringify(payload));
+      
+      if (tg && typeof tg.sendData === 'function') {
+        try {
+          log('Sending data via Telegram WebApp...');
+          tg.sendData(JSON.stringify(payload));
+          log('Data sent successfully');
+          // Don't close immediately, let Telegram handle it
+        } catch (e) {
+          log('Error sending data: ' + e.message);
+          log('Showing fallback form due to Mini App error');
+          fallbackForm.style.display = 'block';
+        }
       } else {
-        alert('Откройте страницу через Telegram Mini App');
+        log('Telegram WebApp sendData not available - showing fallback form');
+        fallbackForm.style.display = 'block';
       }
     });
+    
+    // Handle fallback form submission
+    document.getElementById('participateForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      
+      try {
+        log('Submitting fallback form...');
+        const response = await fetch('/participate', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          log('Registration successful: ' + result.message);
+          alert('Вы успешно зарегистрированы как участник!');
+          if (tg) tg.close();
+        } else {
+          const error = await response.text();
+          log('Registration failed: ' + error);
+          alert('Ошибка регистрации: ' + error);
+        }
+      } catch (e) {
+        log('Form submission error: ' + e.message);
+        alert('Ошибка отправки формы: ' + e.message);
+      }
+    });
+    
+    // Log when the app is about to close
+    if (tg) {
+      tg.onEvent('mainButtonClicked', () => {
+        log('Main button clicked');
+      });
+      
+      tg.onEvent('themeChanged', () => {
+        log('Theme changed');
+      });
+    }
+    
+    // Show fallback after 3 seconds if Mini App seems problematic
+    setTimeout(() => {
+      if (!isMiniApp || (tg && !tg.initDataUnsafe?.user)) {
+        log('Auto-showing fallback form after timeout');
+        fallbackForm.style.display = 'block';
+      }
+    }, 3000);
   </script>
 </body>
 </html> 

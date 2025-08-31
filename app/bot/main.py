@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
-from aiogram.types import Message, WebAppInfo, InlineKeyboardButton
+from aiogram.types import Message, WebAppInfo, InlineKeyboardButton, Update
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.client.default import DefaultBotProperties
 
@@ -102,6 +102,13 @@ async def handle_all_messages(message: Message):
         await handle_webapp_data(message)
 
 
+async def handle_all_updates(update: Update):
+    """Debug handler to log all incoming updates"""
+    logger.info("Received update: id=%s, type=%s", update.update_id, type(update))
+    if hasattr(update, 'message') and update.message and hasattr(update.message, 'web_app_data'):
+        logger.info("Update contains web_app_data in message")
+
+
 async def main():
     bot = Bot(
         token=settings.BOT_TOKEN,
@@ -116,6 +123,9 @@ async def main():
     dp.message.register(handle_webapp_data, F.web_app_data)
     # Universal handler for debugging (should be last)
     dp.message.register(handle_all_messages)
+    
+    # Global update handler for debugging
+    dp.update.register(handle_all_updates)
 
     await dp.start_polling(bot)
 

@@ -91,6 +91,17 @@ async def handle_webapp_data(message: Message):
             pass
 
 
+async def handle_all_messages(message: Message):
+    """Debug handler to log all incoming messages"""
+    logger.info("Received message: type=%s, content_type=%s, web_app_data=%s", 
+                type(message), getattr(message, 'content_type', None), 
+                bool(getattr(message, 'web_app_data', None)))
+    
+    # If this message has web_app_data, handle it directly
+    if hasattr(message, 'web_app_data') and message.web_app_data:
+        await handle_webapp_data(message)
+
+
 async def main():
     bot = Bot(
         token=settings.BOT_TOKEN,
@@ -103,6 +114,8 @@ async def main():
     dp.message.register(handle_start, CommandStart())
     # Handle both explicit web_app_data updates and any message containing web_app_data
     dp.message.register(handle_webapp_data, F.web_app_data)
+    # Universal handler for debugging (should be last)
+    dp.message.register(handle_all_messages)
 
     await dp.start_polling(bot)
 

@@ -56,9 +56,12 @@ async def handle_start(message: Message):
 async def handle_webapp_data(message: Message):
     # message.web_app_data.data contains a string
     try:
-        payload = json.loads(message.web_app_data.data)
-    except Exception:
-        payload = {"raw": message.web_app_data.data}
+        raw = message.web_app_data.data if message.web_app_data else None
+        logger.info("Received web_app_data: %s", raw)
+        payload = json.loads(raw) if raw else {}
+    except Exception as e:
+        logger.warning("Failed to parse web_app_data: %s", e)
+        payload = {"raw": raw}
 
     user = message.from_user
     if user is None:
@@ -70,6 +73,7 @@ async def handle_webapp_data(message: Message):
     session = next(session_gen)
     try:
         service = ParticipantService(session)
+        logger.info("Upserting participant id=%s username=%s", user.id, user.username)
         service.submit_participation(
             telegram_user_id=user.id,
             username=user.username,
@@ -97,6 +101,7 @@ async def main():
     dp.startup.register(on_startup)
 
     dp.message.register(handle_start, CommandStart())
+    # Handle both explicit web_app_data updates and any message containing web_app_data
     dp.message.register(handle_webapp_data, F.web_app_data)
 
     await dp.start_polling(bot)

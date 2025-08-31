@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', case_sensitive=False)
 
     BOT_TOKEN: str = "8448748393:AAGIVP3dnJLIGzvjbBkYDfGdOd1QYqPTlno"
-    WEBAPP_URL: str = "http://localhost:8000"
+    WEBAPP_URL: str
     DATABASE_URL: str = "sqlite:////app/data/app.db"
     LOG_LEVEL: str = "INFO"
 

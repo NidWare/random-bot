@@ -105,8 +105,28 @@ async def handle_all_messages(message: Message):
 async def handle_all_updates(update: Update):
     """Debug handler to log all incoming updates"""
     logger.info("Received update: id=%s, type=%s", update.update_id, type(update))
+    
+    # Check for web_app_data in message
     if hasattr(update, 'message') and update.message and hasattr(update.message, 'web_app_data'):
-        logger.info("Update contains web_app_data in message")
+        logger.info("Found web_app_data in message")
+        await handle_webapp_data(update.message)
+        return
+    
+    # Check for web_app_data in other update types
+    if hasattr(update, 'web_app_data'):
+        logger.info("Found web_app_data in update directly")
+    
+    # Log all attributes of the update for debugging
+    attrs = [attr for attr in dir(update) if not attr.startswith('_') and getattr(update, attr) is not None]
+    logger.info("Update attributes: %s", attrs)
+    
+    # If it's a message, log its type and content
+    if hasattr(update, 'message') and update.message:
+        msg = update.message
+        logger.info("Message content_type: %s, text: %s, web_app_data: %s", 
+                   getattr(msg, 'content_type', None), 
+                   getattr(msg, 'text', None)[:50] if getattr(msg, 'text', None) else None,
+                   bool(getattr(msg, 'web_app_data', None)))
 
 
 async def main():
@@ -124,7 +144,7 @@ async def main():
     # Universal handler for debugging (should be last)
     dp.message.register(handle_all_messages)
     
-    # Global update handler for debugging
+    # Global update handler for debugging - this should catch everything
     dp.update.register(handle_all_updates)
 
     await dp.start_polling(bot)

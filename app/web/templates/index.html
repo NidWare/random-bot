@@ -63,10 +63,7 @@
         tg.ready();
         tg.expand();
         isMiniApp = true;
-        log('Telegram WebApp initialized successfully');
-        log('Platform: ' + tg.platform);
-        log('Version: ' + tg.version);
-        
+
         // Auto-fill form with Telegram user data if available
         if (tg.initDataUnsafe?.user) {
           const user = tg.initDataUnsafe.user;
@@ -74,10 +71,8 @@
           document.getElementById('username').value = user.username || '';
           document.getElementById('firstName').value = user.first_name || '';
           document.getElementById('lastName').value = user.last_name || '';
-          log('Auto-filled form with Telegram user data');
         }
       } else {
-        log('Telegram WebApp not available - showing fallback form');
         fallbackForm.style.display = 'block';
       }
     } catch (e) {

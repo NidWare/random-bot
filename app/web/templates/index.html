@@ -10,6 +10,7 @@
 <body>
   <div class="container">
     <h1>Join the Contest</h1>
+    
     <p>Нажмите кнопку ниже, чтобы отправить участие.</p>
     
     <!-- Mini App button -->
@@ -110,11 +111,22 @@
       e.preventDefault();
       const formData = new FormData(e.target);
       
+      // Convert FormData to JSON
+      const data = {
+        telegram_user_id: parseInt(formData.get('telegram_user_id')),
+        username: formData.get('username') || null,
+        first_name: formData.get('first_name') || null,
+        last_name: formData.get('last_name') || null
+      };
+      
       try {
         log('Submitting fallback form...');
         const response = await fetch('/participate', {
           method: 'POST',
-          body: formData
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data)
         });
         
         if (response.ok) {

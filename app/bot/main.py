@@ -53,44 +53,6 @@ async def handle_start(message: Message):
     )
 
 
-async def handle_webapp_data(message: Message):
-    # message.web_app_data.data contains a string
-    try:
-        raw = message.web_app_data.data if message.web_app_data else None
-        logger.info("Received web_app_data: %s", raw)
-        payload = json.loads(raw) if raw else {}
-    except Exception as e:
-        logger.warning("Failed to parse web_app_data: %s", e)
-        payload = {"raw": raw}
-
-    user = message.from_user
-    if user is None:
-        await message.answer("Не удалось определить пользователя.")
-        return
-
-    # Store participant
-    session_gen = get_session()
-    session = next(session_gen)
-    try:
-        service = ParticipantService(session)
-        logger.info("Upserting participant id=%s username=%s", user.id, user.username)
-        service.submit_participation(
-            telegram_user_id=user.id,
-            username=user.username,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            language_code=user.language_code,
-            is_premium=getattr(user, "is_premium", None),
-            extra_data=payload,
-        )
-        await message.answer("Вы успешно зарегистрированы как участник! Удачи в конкурсе.")
-    finally:
-        try:
-            next(session_gen)
-        except StopIteration:
-            pass
-
-
 async def handle_all_messages(message: Message):
     """Debug handler to log all incoming messages"""
     logger.info("Received message: type=%s, content_type=%s, web_app_data=%s", 
@@ -103,30 +65,91 @@ async def handle_all_messages(message: Message):
 
 
 async def handle_all_updates(update: Update):
-    """Debug handler to log all incoming updates"""
-    logger.info("Received update: id=%s, type=%s", update.update_id, type(update))
+    """Debug handler to log all incoming updates and process web_app_data"""
+    logger.info("=== UPDATE %s ===", update.update_id)
+    logger.info("Update type: %s", type(update))
     
-    # Check for web_app_data in message
-    if hasattr(update, 'message') and update.message and hasattr(update.message, 'web_app_data'):
-        logger.info("Found web_app_data in message")
-        await handle_webapp_data(update.message)
-        return
+    # Log all non-None attributes
+    for attr in dir(update):
+        if not attr.startswith('_'):
+            value = getattr(update, attr)
+            if value is not None and not callable(value):
+                logger.info("Update.%s = %s", attr, value)
     
-    # Check for web_app_data in other update types
-    if hasattr(update, 'web_app_data'):
-        logger.info("Found web_app_data in update directly")
-    
-    # Log all attributes of the update for debugging
-    attrs = [attr for attr in dir(update) if not attr.startswith('_') and getattr(update, attr) is not None]
-    logger.info("Update attributes: %s", attrs)
-    
-    # If it's a message, log its type and content
+    # Check message for web_app_data
     if hasattr(update, 'message') and update.message:
         msg = update.message
-        logger.info("Message content_type: %s, text: %s, web_app_data: %s", 
-                   getattr(msg, 'content_type', None), 
-                   getattr(msg, 'text', None)[:50] if getattr(msg, 'text', None) else None,
-                   bool(getattr(msg, 'web_app_data', None)))
+        logger.info("Message exists - checking for web_app_data")
+        logger.info("Message type: %s", type(msg))
+        
+        # Log message attributes
+        for attr in dir(msg):
+            if not attr.startswith('_'):
+                value = getattr(msg, attr)
+                if value is not None and not callable(value):
+                    logger.info("Message.%s = %s", attr, str(value)[:200])
+        
+        # Check for web_app_data
+        if hasattr(msg, 'web_app_data') and msg.web_app_data:
+            logger.info("FOUND WEB_APP_DATA in message!")
+            await handle_webapp_data(msg)
+            return
+    
+    # Check for inline_query with web_app
+    if hasattr(update, 'inline_query') and update.inline_query:
+        logger.info("Inline query detected")
+    
+    # Check for callback_query with web_app
+    if hasattr(update, 'callback_query') and update.callback_query:
+        logger.info("Callback query detected")
+    
+    logger.info("=== END UPDATE %s ===", update.update_id)
+
+
+async def handle_webapp_data(message: Message):
+    """Handle web app data from message"""
+    try:
+        raw = message.web_app_data.data if message.web_app_data else None
+        logger.info("Processing web_app_data: %s", raw)
+        payload = json.loads(raw) if raw else {}
+        logger.info("Parsed payload: %s", payload)
+    except Exception as e:
+        logger.warning("Failed to parse web_app_data: %s", e)
+        payload = {"raw": raw}
+
+    user = message.from_user
+    if user is None:
+        logger.error("No user found in message")
+        await message.answer("Не удалось определить пользователя.")
+        return
+
+    logger.info("User info: id=%s, username=%s, first_name=%s", user.id, user.username, user.first_name)
+
+    # Store participant
+    session_gen = get_session()
+    session = next(session_gen)
+    try:
+        service = ParticipantService(session)
+        logger.info("Creating participant service and upserting...")
+        participant = service.submit_participation(
+            telegram_user_id=user.id,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            language_code=user.language_code,
+            is_premium=getattr(user, "is_premium", None),
+            extra_data=payload,
+        )
+        logger.info("Participant created successfully: id=%s", participant.id)
+        await message.answer("Вы успешно зарегистрированы как участник! Удачи в конкурсе.")
+    except Exception as e:
+        logger.error("Failed to create participant: %s", e)
+        await message.answer("Произошла ошибка при регистрации. Попробуйте еще раз.")
+    finally:
+        try:
+            next(session_gen)
+        except StopIteration:
+            pass
 
 
 async def main():
@@ -138,11 +161,8 @@ async def main():
 
     dp.startup.register(on_startup)
 
+    # Register handlers in order of specificity
     dp.message.register(handle_start, CommandStart())
-    # Handle both explicit web_app_data updates and any message containing web_app_data
-    dp.message.register(handle_webapp_data, F.web_app_data)
-    # Universal handler for debugging (should be last)
-    dp.message.register(handle_all_messages)
     
     # Global update handler for debugging - this should catch everything
     dp.update.register(handle_all_updates)

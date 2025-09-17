@@ -16,7 +16,7 @@ from app.db.base import init_db, get_session
 from app.services.participant_service import ParticipantService
 
 
-logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO))
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

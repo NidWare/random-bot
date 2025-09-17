@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 async def on_startup(bot: Bot):
+    logger.info("NEW CODE LOADED - DEBUG HANDLER ACTIVE")
     init_db()
     # Ensure polling receives updates even if a webhook was previously set
     try:
